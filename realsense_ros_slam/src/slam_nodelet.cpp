@@ -32,6 +32,8 @@ bool is_pub_odom = false;
 
 ros::Publisher pub_pose2d, pub_pose, pub_map, pub_accuracy, pub_reloc, pub_odom;
 geometry_msgs::Pose2D pose2d;
+static tf::TransformBroadcaster br_pose;  // pose tf broadcaster
+
 
 IplImage * ipNavMap = NULL;
 std::vector< stRobotPG > g_robotPGStack;
@@ -346,6 +348,28 @@ geometry_msgs::PoseStamped getPoseStampedMsg(rs::slam::PoseMatrix4f cameraPose, 
   return pose_stamped_msg;
 }
 
+namespace tf_conversions //anonymous
+{ 
+using namespace tf;
+inline void poseMsgToTF(const geometry_msgs::Pose& msg, Transform& bt)
+{
+  bt = Transform(Quaternion(msg.orientation.x,
+                            msg.orientation.y,
+                            msg.orientation.z,
+                            msg.orientation.w),
+                 Vector3(msg.position.x, msg.position.y, msg.position.z));
+}
+
+///Sets the child frame fixed to "camera"
+inline void poseStampedMsgToTF(const geometry_msgs::PoseStamped & msg, StampedTransform& bt)
+{
+  tf_conversions::poseMsgToTF(msg.pose, bt); 
+  bt.stamp_ = ros::Time::now();
+  bt.frame_id_ = "odom";
+  bt.child_frame_id_ = msg.header.frame_id;
+}
+}//anon namespace
+
 class slam_event_handler : public rs::core::video_module_interface::processing_event_handler
 {
 public:
@@ -366,6 +390,13 @@ public:
     slamPtr->get_camera_pose(cameraPose);
     geometry_msgs::PoseStamped pose_msg = getPoseStampedMsg(cameraPose, feFrameNum, feTimeStamp);
     pub_pose.publish(pose_msg);
+
+    // Broadcast tf message
+    tf::StampedTransform pose_transform;
+    tf_conversions::poseStampedMsgToTF(pose_msg, pose_transform);
+    br_pose.sendTransform(pose_transform);
+
+
 
     // Publish relocalized camera pose, if any
     rs::slam::PoseMatrix4f relocPose;
@@ -508,7 +539,6 @@ void SNodeletSlam::onInit()
   actual_config = {};
   
   slam_ = boost::make_unique<rs::slam::slam>();
-  
   ROS_INFO("end of onInit");
 }//end onInit
 

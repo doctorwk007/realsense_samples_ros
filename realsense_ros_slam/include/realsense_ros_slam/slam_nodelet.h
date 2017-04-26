@@ -38,6 +38,8 @@
 #include <realsense_ros_camera/IMUInfo.h>
 #include <realsense_ros_slam/Reset.h>
 #include <realsense_ros_slam/SaveOutput.h>
+#include <tf/transform_datatypes.h>
+#include <tf/transform_broadcaster.h>
 
 namespace realsense_ros_slam
 {
